@@ -33,7 +33,7 @@ jobs:
                return await coredemo.getIDToken()
            result-encoding: string
       - name: Output Token
-        run: echo ${{ steps.idtoken.output.result }} | base64
+        run: echo ${{ steps.idtoken.outputs.result }} | base64
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
